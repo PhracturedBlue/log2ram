@@ -2,7 +2,7 @@
 
 . /etc/log2ram.conf
 
-HDD_LOG=/var/hdd.log
+HDD_LOG=/var/log.hdd
 RAM_LOG=/var/log
 
 LOG_NAME="log2ram.log"
@@ -18,7 +18,8 @@ syncToDisk () {
     isSafe
 
     if [ "$USE_RSYNC" = true ]; then
-        rsync -aXWv --delete --links $RAM_LOG/ $HDD_LOG/ 2>&1 | $LOG_OUTPUT
+        #rsync -aXWv --delete --links $RAM_LOG/ $HDD_LOG/ 2>&1 | $LOG_OUTPUT
+        rsync -aXWv --links $RAM_LOG/ $HDD_LOG/ 2>&1 | $LOG_OUTPUT
     else
         cp -rfup $RAM_LOG/ -T $HDD_LOG/ 2>&1 | $LOG_OUTPUT
     fi
@@ -27,7 +28,8 @@ syncToDisk () {
 syncFromDisk () {
     isSafe
 
-    if [ ! -z "$(du -sh -t "$SIZE" $HDD_LOG/ | cut -f1)" ]; then
+    #if [ ! -z "$(du -sh -t "$SIZE" $HDD_LOG/ | cut -f1)" ]; then
+    if [ ! -z "$(du -sh -t "1M" --exclude=*.gz --exclude=*.1 /var/log/ | cut -f1)" ]; then
         echo "ERROR: RAM disk too small. Can't sync."
         umount -l $RAM_LOG/
         umount -l $HDD_LOG/
@@ -38,7 +40,8 @@ syncFromDisk () {
     fi
 
     if [ "$USE_RSYNC" = true ]; then
-        rsync -aXWv --delete --links $HDD_LOG/ $RAM_LOG/ 2>&1 | $LOG_OUTPUT
+        #rsync -aXWv --delete --links $HDD_LOG/ $RAM_LOG/ 2>&1 | $LOG_OUTPUT
+		rsync -aXWv --links --exclude="*.gz" --exclude="*.1" $HDD_LOG/ $RAM_LOG/ 2>&1 | $LOG_OUTPUT
     else
         cp -rfup $HDD_LOG/ -T $RAM_LOG/ 2>&1 | $LOG_OUTPUT
     fi
