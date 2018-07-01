@@ -2,19 +2,19 @@
 
 if [ "$(id -u)" -eq 0 ]
 then
-  service log2ram stop
+  systemctl stop log2ram
   systemctl disable log2ram
   rm /etc/systemd/system/log2ram.service
-  rm /usr/local/bin/log2ram
+  rm /opt/scripts/log2ram
   rm /etc/log2ram.conf
-  rm /etc/cron.hourly/log2ram
+  rm /etc/cron.weekly/log2ram
   rm /etc/logrotate.d/log2ram
 
-  if [ -d /var/hdd.log ]; then
-    rm -r /var/hdd.log
+  if [ -d /var/log.hdd ]; then
+    rm -r /var/log.hdd
   fi
   echo "Log2Ram is uninstalled, removing the uninstaller in progress"
-  rm /usr/local/bin/uninstall-log2ram.sh
+  rm /opt/scripts/uninstall-log2ram.sh
   echo "##### Reboot isn't needed #####"
 else
   echo "You need to be ROOT (sudo can be used)"
