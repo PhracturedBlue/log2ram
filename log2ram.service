@@ -9,9 +9,9 @@ IgnoreOnIsolate=yes
 
 [Service]
 Type=oneshot
-ExecStart= /usr/local/bin/log2ram start
-ExecStop= /usr/local/bin/log2ram stop
-ExecReload= /usr/local/bin/log2ram write
+ExecStart= /opt/scripts/log2ram start
+ExecStop= /opt/scripts/log2ram stop
+ExecReload= /opt/scripts/log2ram write
 RemainAfterExit=yes
 
 [Install]
