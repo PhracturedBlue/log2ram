@@ -20,6 +20,8 @@ syncToDisk () {
     if [ "$USE_RSYNC" = true ]; then
         #rsync -aXWv --delete --links $RAM_LOG/ $HDD_LOG/ 2>&1 | $LOG_OUTPUT
         rsync -aXWv --links $RAM_LOG/ $HDD_LOG/ 2>&1 | $LOG_OUTPUT
+        rm $RAM_LOG/*.gz
+        rm $RAM_LOG/*.1
     else
         cp -rfup $RAM_LOG/ -T $HDD_LOG/ 2>&1 | $LOG_OUTPUT
     fi
