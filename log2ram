@@ -36,6 +36,9 @@ syncFromDisk () {
         if [ "$MAIL" = true ]; then
             echo "LOG2RAM : No place on RAM anymore, fallback on the disk" | mail -s 'Log2Ram Error' root;
         fi
+        if [ "$TELEGRAM" = true ]; then
+            sendTelegramMessage 'Nas Log2Ram Error: No place on RAM anymore, fallback on the disk'
+        fi
         exit 1
     fi
 
