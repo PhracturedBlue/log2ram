@@ -11,8 +11,8 @@ Conflicts=shutdown.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/lib/armbian/armbian-zram-config start
-ExecStop=/usr/lib/armbian/armbian-zram-config stop
+ExecStart=/usr/local/bin/armbian-zram-config start
+ExecStop=/usr/local/bin/armbian-zram-config stop
 RemainAfterExit=yes
 TimeoutStartSec=30sec
 

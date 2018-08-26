@@ -13,9 +13,9 @@ IgnoreOnIsolate=yes
 
 [Service]
 Type=oneshot
-ExecStart=/usr/lib/armbian/armbian-ramlog start
-ExecStop=/usr/lib/armbian/armbian-ramlog stop
-ExecReload=/usr/lib/armbian/armbian-ramlog write
+ExecStart=/usr/local/bin/armbian-ramlog start
+ExecStop=/usr/local/bin/armbian-ramlog stop
+ExecReload=/usr/local/bin/armbian-ramlog write
 RemainAfterExit=yes
 TimeoutStartSec=30sec
 
