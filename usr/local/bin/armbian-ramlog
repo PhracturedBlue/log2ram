@@ -9,6 +9,7 @@
 SIZE=50M
 USE_RSYNC=true
 ENABLED=false
+AGE=360 # age of files to purge from ramdisk in minutes
 
 [ -f /etc/default/armbian-ramlog ] && . /etc/default/armbian-ramlog
 
@@ -17,13 +18,16 @@ ENABLED=false
 # Never touch anything below here. Only edit /etc/default/armbian-ramlog
 
 HDD_LOG=/var/log.hdd/
-RAM_LOG=/var/log/
+RAM_LOG=/var/log.ram/log  # The extra /log is needed so that overlayfs has a place to put its workdir
+UNION_LOG=/var/log/
 LOG2RAM_LOG="${HDD_LOG}armbian-ramlog.log"
 LOG_OUTPUT="tee -a $LOG2RAM_LOG"
 
 isSafe () {
 	[ -d $HDD_LOG ] || echo "ERROR: $HDD_LOG doesn't exist! Can't sync."
+	[ -d $RAM_LOG ] || echo "ERROR: $RAM_LOG doesn't exist! Can't sync."
 	[ -d $HDD_LOG ] || exit 1
+	[ -d $RAM_LOG ] || exit 1
 }
 
 RecreateLogs (){
@@ -50,20 +54,8 @@ syncToDisk () {
 	else
 		cp -rfup $RAM_LOG -T $HDD_LOG 2>&1 | $LOG_OUTPUT
 	fi
-
-	sync
-}
-
-syncFromDisk () {
-	isSafe
-
-	echo -e "\n\n$(date): Loading logs from storage to $LOG_TYPE\n" | $LOG_OUTPUT
-
-	if [ "$USE_RSYNC" = true ]; then
-		rsync -aXWv --delete --exclude armbian-ramlog.log --exclude *.gz --exclude='*.[0-9]' --links $HDD_LOG $RAM_LOG 2>&1 | $LOG_OUTPUT
-	else
-		find $HDD_LOG* -maxdepth 1 -type f -not \( -name '*.[0-9]' -or -name '*.xz*' -or -name '*.gz' \) | xargs cp -ut $RAM_LOG
-	fi
+	# remove any files that haven't been modified for the past n seconds and have no open file handles
+	find $RAM_LOG -type f -mmin +$AGE -not -exec sh -c 'lsof {} > /dev/null 2>&1' \; -delete 2>&1 | $LOG_OUTPUT
 
 	sync
 }
@@ -86,27 +78,34 @@ fi
 
 case "$1" in
 	start)
+		ram_mount_dir="$(dirname $RAM_LOG)"
 		[ -d $HDD_LOG ] || mkdir -p $HDD_LOG
-		mount --bind $RAM_LOG $HDD_LOG
+		[ -d $ram_mount_dir ] || mkdir -p $ram_mount_dir
+		mount --bind $UNION_LOG $HDD_LOG
 		mount --make-private $HDD_LOG
 
 		case $LOG_TYPE in
 			zram)
-				echo -e "Mounting /dev/zram0 as $RAM_LOG \c" | $LOG_OUTPUT
-				mount /dev/zram0 $RAM_LOG 2>&1 | $LOG_OUTPUT
+				echo -e "Mounting /dev/zram0 as $ram_mount_dir \c" | $LOG_OUTPUT
+				mount /dev/zram0 $ram_mount_dir 2>&1 | $LOG_OUTPUT
 				;;
 			tmpfs)
-				echo -e "Setting up $RAM_LOG as tmpfs \c" | $LOG_OUTPUT
-				mount -t tmpfs -o nosuid,noexec,nodev,mode=0755,size=$SIZE armbian-ramlog $RAM_LOG 2>&1 | $LOG_OUTPUT
+				echo -e "Setting up $ram_mount_dir as tmpfs \c" | $LOG_OUTPUT
+				mount -t tmpfs -o nosuid,noexec,nodev,mode=0755,size=$SIZE armbian-ramlog $ram_mount_dir 2>&1 | $LOG_OUTPUT
 				;;
 		esac
+		mkdir -p $RAM_LOG
+		mkdir -p $ram_mount_dir/work
+		mount -t overlay overlay -o lowerdir=$HDD_LOG,upperdir=$RAM_LOG,workdir=$ram_mount_dir/work $UNION_LOG
 
-		syncFromDisk
+		#syncFromDisk
 		RecreateLogs
 		;;
 	stop)
 		syncToDisk
-		umount -l $RAM_LOG
+		ram_mount_dir="$(dirname $RAM_LOG)"
+		umount -l $UNION_LOG
+		umount -l $ram_mount_dir
 		umount -l $HDD_LOG
 		;;
 	write)
