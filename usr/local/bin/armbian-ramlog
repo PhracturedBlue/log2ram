@@ -55,7 +55,11 @@ syncToDisk () {
 		cp -rfup $RAM_LOG -T $HDD_LOG 2>&1 | $LOG_OUTPUT
 	fi
 	# remove any files that haven't been modified for the past n seconds and have no open file handles
-	find $RAM_LOG -type f -mmin +$AGE -not -exec sh -c 'lsof {} > /dev/null 2>&1' \; -delete 2>&1 | $LOG_OUTPUT
+	echo -e "\n\n$(date): Removing duplicate files on tmpfs\n" | $LOG_OUTPUT
+	find $RAM_LOG -type f -mmin +$AGE -not -exec fuser -s {} \; -delete 2>&1 | $LOG_OUTPUT
+	# remove removed files
+	echo -e "\n\n$(date): Removing deleted files on hdd\n" | $LOG_OUTPUT
+	find $HDD_LOG -type c -delete 2>&1 | $LOG_OUTPUT
 
 	sync
 }
