@@ -9,6 +9,10 @@
 SIZE=50M
 USE_RSYNC=true
 ENABLED=false
+#OVERLAYFS doesn't like modifying the lower dir
+#Unionfs seems to be more tolerant.  We use the fuse version so we don't need
+#to deal with dkms
+USE_UNIONFS=true
 AGE=360 # age of files to purge from ramdisk in minutes
 
 [ -f /etc/default/armbian-ramlog ] && . /etc/default/armbian-ramlog
@@ -18,7 +22,7 @@ AGE=360 # age of files to purge from ramdisk in minutes
 # Never touch anything below here. Only edit /etc/default/armbian-ramlog
 
 HDD_LOG=/var/log.hdd/
-RAM_LOG=/var/log.ram/log  # The extra /log is needed so that overlayfs has a place to put its workdir
+RAM_LOG=/var/log.ram/log/  # The extra /log is needed so that overlayfs has a place to put its workdir
 UNION_LOG=/var/log/
 LOG2RAM_LOG="${HDD_LOG}armbian-ramlog.log"
 LOG_OUTPUT="tee -a $LOG2RAM_LOG"
@@ -50,16 +54,23 @@ syncToDisk () {
 	echo -e "\n\n$(date): Syncing logs from $LOG_TYPE to storage\n" | $LOG_OUTPUT
 
 	if [ "$USE_RSYNC" = true ]; then
-		rsync -aXWv --exclude armbian-ramlog.log --links $RAM_LOG $HDD_LOG 2>&1 | $LOG_OUTPUT
+		rsync -aXWv --exclude .unionfs --exclude armbian-ramlog.log --links $RAM_LOG $HDD_LOG 2>&1 | $LOG_OUTPUT
 	else
 		cp -rfup $RAM_LOG -T $HDD_LOG 2>&1 | $LOG_OUTPUT
+		rm -rf $HDD_LOG/.unionfs/ 2> /dev/null
 	fi
 	# remove any files that haven't been modified for the past n seconds and have no open file handles
 	echo -e "\n\n$(date): Removing duplicate files on tmpfs\n" | $LOG_OUTPUT
 	find $RAM_LOG -type f -mmin +$AGE -not -exec fuser -s {} \; -delete 2>&1 | $LOG_OUTPUT
 	# remove removed files
 	echo -e "\n\n$(date): Removing deleted files on hdd\n" | $LOG_OUTPUT
-	find $HDD_LOG -type c -delete 2>&1 | $LOG_OUTPUT
+	if [ "$USE_UNIONFS" = true ]; then
+		# Remove deleted files
+		(cd $RAM_LOG/.unionfs; find ./ -type f -name "*HIDDEN~" -print -delete) | sed -e 's/_HIDDEN~//' | (cd $HDD_LOG; xargs rm -f) 2>&1 | $LOG_OUTPUT
+	else
+		find $HDD_LOG -type c -delete 2>&1 | $LOG_OUTPUT
+		find $RAM_LOG -type c -print -delete 2>&1 | $LOG_OUTPUT
+	fi
 
 	sync
 }
@@ -100,7 +111,12 @@ case "$1" in
 		esac
 		mkdir -p $RAM_LOG
 		mkdir -p $ram_mount_dir/work
-		mount -t overlay overlay -o lowerdir=$HDD_LOG,upperdir=$RAM_LOG,workdir=$ram_mount_dir/work $UNION_LOG
+
+		if [ "$USE_UNIONFS" = true ]; then
+			unionfs -o cow -o hide_meta_files -o statfs_omit_ro -o allow_other -o nonempty $RAM_LOG=RW:$HDD_LOG=RO $UNION_LOG
+		else
+			mount -t overlay overlay -o lowerdir=$HDD_LOG,upperdir=$RAM_LOG,workdir=$ram_mount_dir/work $UNION_LOG
+		fi
 
 		#syncFromDisk
 		RecreateLogs
